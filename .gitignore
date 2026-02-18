@@ -1,0 +1,40 @@
+# General
+__pycache__/
+*.py[cod]
+*$py.class
+.DS_Store
+.vscode/
+.idea/
+*.log
+*.swp
+
+# Python
+venv/
+env/
+.env
+build/
+dist/
+*.egg-info/
+.coverage
+htmlcov/
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+
+# Data (Strictly ignored)
+data/
+results/
+figures/
+models/*.pt
+models/*.h5
+*.csv
+*.xlsx
+*.json
+!data/.gitkeep
+!results/.gitkeep
+!figures/.gitkeep
+
+# Secrets
+secrets.yaml
+credentials.json
+key.pem
