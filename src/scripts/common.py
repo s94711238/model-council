@@ -4,11 +4,17 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
+
+_RETRYABLE_HTTP_CODES = {502, 503, 504, 429}
 
 
 class OpenClawToolError(RuntimeError):
@@ -16,7 +22,7 @@ class OpenClawToolError(RuntimeError):
 
 
 class OpenClawClient:
-    """Minimal OpenClaw Gateway /tools/invoke client."""
+    """Minimal OpenClaw Gateway /tools/invoke client with retry support."""
 
     def __init__(
         self,
@@ -24,11 +30,13 @@ class OpenClawClient:
         token: str | None = None,
         session_key: str = "main",
         timeout: float = 30.0,
+        max_retries: int = 3,
     ) -> None:
         self.gateway_url = gateway_url or os.getenv("OPENCLAW_GATEWAY_URL") or self._default_gateway_url()
         self.token = token or os.getenv("OPENCLAW_GATEWAY_TOKEN") or self._default_gateway_token()
         self.session_key = session_key
         self.timeout = timeout
+        self.max_retries = max_retries
 
         if not self.token:
             raise OpenClawToolError(
@@ -43,24 +51,42 @@ class OpenClawClient:
             "sessionKey": self.session_key,
             "dryRun": False,
         }
-        req = urllib.request.Request(
-            url=f"{self.gateway_url.rstrip('/')}/tools/invoke",
-            data=json.dumps(payload).encode("utf-8"),
-            method="POST",
-            headers={
-                "Authorization": f"Bearer {self.token}",
-                "Content-Type": "application/json",
-            },
-        )
 
-        try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                body = resp.read().decode("utf-8")
-        except urllib.error.HTTPError as exc:
-            text = exc.read().decode("utf-8", errors="replace")
-            raise OpenClawToolError(f"HTTP {exc.code} invoking {tool}: {text}") from exc
-        except urllib.error.URLError as exc:
-            raise OpenClawToolError(f"Cannot reach Gateway: {exc}") from exc
+        last_exc: Exception | None = None
+        for attempt in range(self.max_retries + 1):
+            req = urllib.request.Request(
+                url=f"{self.gateway_url.rstrip('/')}/tools/invoke",
+                data=json.dumps(payload).encode("utf-8"),
+                method="POST",
+                headers={
+                    "Authorization": f"Bearer {self.token}",
+                    "Content-Type": "application/json",
+                },
+            )
+
+            try:
+                with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                    body = resp.read().decode("utf-8")
+                break  # success
+            except urllib.error.HTTPError as exc:
+                if exc.code in _RETRYABLE_HTTP_CODES and attempt < self.max_retries:
+                    delay = 2 ** (attempt + 1)  # 2s, 4s, 8s
+                    logger.warning("HTTP %d invoking %s, retrying in %ds (attempt %d/%d)", exc.code, tool, delay, attempt + 1, self.max_retries)
+                    time.sleep(delay)
+                    last_exc = exc
+                    continue
+                text = exc.read().decode("utf-8", errors="replace")
+                raise OpenClawToolError(f"HTTP {exc.code} invoking {tool}: {text}") from exc
+            except urllib.error.URLError as exc:
+                if attempt < self.max_retries:
+                    delay = 2 ** (attempt + 1)
+                    logger.warning("URLError invoking %s: %s, retrying in %ds (attempt %d/%d)", tool, exc, delay, attempt + 1, self.max_retries)
+                    time.sleep(delay)
+                    last_exc = exc
+                    continue
+                raise OpenClawToolError(f"Cannot reach Gateway: {exc}") from exc
+        else:
+            raise OpenClawToolError(f"Max retries ({self.max_retries}) exceeded for {tool}") from last_exc
 
         parsed = json.loads(body)
         if not parsed.get("ok", False):

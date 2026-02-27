@@ -145,10 +145,7 @@ def verify_with_perplexity(claim: str) -> dict[str, Any]:
 
     evidence, citations = _extract_text_and_citations(result)
 
-    lower_evidence = evidence.lower()
-    claim_lower = claim.lower()
-    overlap_tokens = [t for t in re.findall(r"[a-zA-Z]{4,}|\d+(?:\.\d+)?", claim_lower) if t in lower_evidence]
-    confidence = min(0.95, 0.2 + len(set(overlap_tokens)) * 0.06 + min(len(citations), 5) * 0.07)
+    confidence, signals = _score_evidence(claim, evidence, citations)
 
     if len(citations) >= 2 and confidence >= 0.55:
         verdict: bool | str = True
@@ -163,7 +160,68 @@ def verify_with_perplexity(claim: str) -> dict[str, Any]:
         "evidence": evidence or "No evidence extracted",
         "citations": citations,
         "confidence": round(confidence, 2),
+        "confidence_signals": signals,
     }
+
+
+_AUTHORITATIVE_DOMAINS = {"gov", "edu", "org", "who.int", "nih.gov", "ncbi", "nature.com", "science.org", "ieee.org", "pubmed"}
+_CONTRADICTION_PATTERNS = ["not true", "incorrect", "false claim", "no evidence", "debunked", "misleading", "inaccurate", "disputed", "unverified"]
+
+
+def _score_evidence(claim: str, evidence: str, citations: list[str]) -> tuple[float, dict[str, float]]:
+    """Score evidence quality using multiple weighted signals.
+
+    Returns (confidence, signal_breakdown) where confidence is 0.0–0.95.
+    """
+    lower_evidence = evidence.lower()
+    claim_lower = claim.lower()
+    signals: dict[str, float] = {}
+
+    # 1. Token overlap ratio (how much of the claim's content appears in evidence)
+    claim_tokens = set(re.findall(r"[a-zA-Z]{4,}|\d+(?:\.\d+)?", claim_lower))
+    if claim_tokens:
+        matched = sum(1 for t in claim_tokens if t in lower_evidence)
+        signals["token_overlap"] = matched / len(claim_tokens)
+    else:
+        signals["token_overlap"] = 0.0
+
+    # 2. Numeric precision match (specific numbers from the claim in evidence)
+    claim_numbers = set(re.findall(r"\d+(?:\.\d+)?", claim_lower))
+    if claim_numbers:
+        num_matched = sum(1 for n in claim_numbers if n in lower_evidence)
+        signals["numeric_match"] = num_matched / len(claim_numbers)
+    else:
+        signals["numeric_match"] = 0.5  # neutral when no numbers to verify
+
+    # 3. Citation count (more sources = higher confidence, diminishing returns)
+    signals["citation_count"] = min(1.0, len(citations) * 0.2)
+
+    # 4. Citation authority (prefer .gov, .edu, .org, known academic sources)
+    auth_count = 0
+    for url in citations:
+        if any(d in url.lower() for d in _AUTHORITATIVE_DOMAINS):
+            auth_count += 1
+    signals["citation_authority"] = min(1.0, auth_count * 0.3) if citations else 0.0
+
+    # 5. Contradiction detection (explicit negation signals in evidence)
+    has_contradiction = any(p in lower_evidence for p in _CONTRADICTION_PATTERNS)
+    signals["contradiction"] = -0.3 if has_contradiction else 0.0
+
+    # 6. Evidence substance (very short evidence is less informative)
+    signals["evidence_length"] = min(1.0, len(evidence) / 500)
+
+    # Weighted combination
+    confidence = (
+        0.30 * signals["token_overlap"]
+        + 0.20 * signals["numeric_match"]
+        + 0.20 * signals["citation_count"]
+        + 0.10 * signals["citation_authority"]
+        + 0.10 * signals["evidence_length"]
+        + signals["contradiction"]
+    )
+    confidence = max(0.0, min(0.95, confidence + 0.10))  # base floor + hard cap
+
+    return confidence, {k: round(v, 3) for k, v in signals.items()}
 
 
 def _load_quota_state() -> dict[str, Any]:
