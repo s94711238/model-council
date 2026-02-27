@@ -15,6 +15,7 @@ from typing import Literal
 RiskLevel = Literal["low", "medium", "high"]
 
 KEYWORDS_HIGH = [
+    # Business / financial
     "投資",
     "收購",
     "併購",
@@ -25,8 +26,20 @@ KEYWORDS_HIGH = [
     "mission critical",
     "capex",
     "due diligence",
+    # Bioinformatics / clinical — high-impact decisions
+    "clinical trial",
+    "臨床試驗",
+    "drug target",
+    "藥物靶點",
+    "patient stratification",
+    "diagnostic panel",
+    "regulatory submission",
+    "fda",
+    "gmp",
+    "variant pathogenicity",
 ]
 KEYWORDS_MEDIUM = [
+    # Business
     "市場分析",
     "競爭者",
     "competition",
@@ -36,6 +49,23 @@ KEYWORDS_MEDIUM = [
     "gtm",
     "商業模式",
     "benchmark",
+    # Bioinformatics / research — analysis requiring verification
+    "differential expression",
+    "差異表達",
+    "pathway analysis",
+    "enrichment analysis",
+    "scrna-seq",
+    "single-cell",
+    "單細胞",
+    "bulk rna-seq",
+    "genome-wide",
+    "全基因組",
+    "mutation calling",
+    "copy number variation",
+    "survival analysis",
+    "kaplan-meier",
+    "biomarker",
+    "生物標記",
 ]
 KEYWORDS_LOW = [
     "文獻綜述",
@@ -44,6 +74,12 @@ KEYWORDS_LOW = [
     "overview",
     "背景",
     "background",
+    # Bioinformatics — informational / reference
+    "protocol",
+    "實驗流程",
+    "methodology overview",
+    "tool comparison",
+    "工具比較",
 ]
 
 URL_RE = re.compile(r"https?://\S+", re.IGNORECASE)
