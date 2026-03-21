@@ -1,0 +1,34 @@
+{
+  "timestamp": "20260321-1140",
+  "topic": "NGS 次世代定序公司國際市場拓展策略",
+  "primary_report": "primary-report.md",
+  "language": "zh-TW",
+  "council_members": {
+    "codex": {
+      "role": "Technical Auditor",
+      "focus": "市場數據準確性、技術正確性、法規路徑驗證",
+      "output": "codex.md",
+      "verdict": "Pass with caveats",
+      "score": 62
+    },
+    "sonnet": {
+      "role": "Critical Reasoner",
+      "focus": "邏輯一致性、內部矛盾、替代觀點",
+      "output": "sonnet.md",
+      "verdict": "Pass with caveats",
+      "score": 62
+    },
+    "strategic": {
+      "role": "Strategic Validator",
+      "focus": "執行可行性、風險分析、行動優先順序",
+      "output": "strategic.md",
+      "verdict": "Pass with caveats",
+      "score": 62
+    }
+  },
+  "synthesis": "council-final.md",
+  "overall_verdict": "Pass with caveats",
+  "consensus_score": 62,
+  "consensus_items": 6,
+  "divergence_items": 3
+}
